@@ -1,0 +1,43 @@
+# Fleetlogic gitignore
+#Created by https://www.gitignore.io/api/django
+
+### Django ###
+*.log
+*.pot
+*.pyc
+__pycache__/
+local_settings.py
+db.sqlite3
+media
+
+# End of https://www.gitignore.io/api/django
+# files to be ignored from Fleetlogic the dev server
+
+*.err
+static/
+settings.py.mysql
+settings.py.postgre
+eggcache/
+wsdl_cache/
+log.txt
+log.err
+log.err.old
+logrotate.log
+log.err.old
+.DS_Store
+._.DS_Store
+env/
+venv/
+migrations/
+gunicorn.socket
+# Node modulea
+.env
+
+# Idea configuration
+.idea
+.vscode
+tsconfig.json
+/coverage
+test_results.xml
+.autoenv
+.autoenv*
