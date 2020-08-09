@@ -1,4 +1,5 @@
 from rest_framework import serializers
+
 from django.contrib.auth import get_user_model
 
 from .models import Restaurant, FavoriteRestaurant, BlackListedRestaurant
@@ -11,37 +12,42 @@ class RestaurantSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    favorite_restaurants = serializers.StringRelatedField(many=True)
-    black_list_restaurants = serializers.StringRelatedField(many=True)
+    urls = serializers.SerializerMethodField()
 
     class Meta:
         model = get_user_model()
-        fields = ("id", "username", "favorite_restaurants", "black_list_restaurants")
+        fields = ("id", "username", "urls")
+
+    def get_urls(self, obj):
+        return {
+            "favorite_restaurants": self.context["request"].build_absolute_uri(
+                f"/api/users/{obj.id}/favorite_restaurants/"
+            ),
+            "blacklist_restaurants": self.context["request"].build_absolute_uri(
+                f"/api/users/{obj.id}/blacklist_restaurants/"
+            ),
+        }
 
 
 class FavoriteRestaurantSerializer(serializers.ModelSerializer):
+    restaurants = serializers.SerializerMethodField()
+
     class Meta:
         model = FavoriteRestaurant
-        fields = "__all__"
+        fields = ("restaurants",)
 
-    def create(self, validated_data):
-        black_rest = BlackListedRestaurant.objects.filter(
-            user=validated_data["user"], restaurant=validated_data["restaurant"]
-        )
-        if black_rest:
-            raise serializers.ValidationError("Can not add blacklisted restaurants")
-        return FavoriteRestaurant.objects.create(**validated_data)
+    def get_restaurants(self, obj):
+        serialize = RestaurantSerializer(obj.restaurant)
+        return serialize.data
 
 
 class BlackListedRestaurantSerializer(serializers.ModelSerializer):
+    restaurants = serializers.SerializerMethodField()
+
     class Meta:
         model = BlackListedRestaurant
-        fields = "__all__"
+        fields = ("restaurants",)
 
-    def create(self, validated_data):
-        fav_rest = FavoriteRestaurant.objects.filter(
-            user=validated_data["user"], restaurant=validated_data["restaurant"]
-        )
-        if fav_rest:
-            raise fav_rest.delete()
-        return BlackListedRestaurant.objects.create(**validated_data)
+    def get_restaurants(self, obj):
+        serialize = RestaurantSerializer(obj.restaurant)
+        return serialize.data

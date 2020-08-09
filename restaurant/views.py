@@ -1,8 +1,10 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, generics
 from django.contrib.auth import get_user_model
-from rest_framework.decorators import action
+from django.shortcuts import get_object_or_404
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
-
+from rest_framework.reverse import reverse
+from rest_framework.exceptions import ValidationError
 from .models import Restaurant, FavoriteRestaurant, BlackListedRestaurant
 from .serializer import (
     RestaurantSerializer,
@@ -11,40 +13,109 @@ from .serializer import (
     BlackListedRestaurantSerializer,
 )
 
-# Create your views here.
+
+@api_view(["GET"])
+def api_root(request, format=None):
+    return Response(
+        {
+            "users": reverse("user-list", request=request, format=format),
+            "restaurants": reverse("restaurant-list", request=request, format=format),
+        }
+    )
 
 
 class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Restaurant.objects.all()
     serializer_class = RestaurantSerializer
 
+    def get_queryset(self):
+        return Restaurant.objects.filter(**self._get_query_params())
+
+    def _get_query_params(self):
+        model_query_map = {
+            "distance": "office_distance",
+            "distance_gt": "office_distance__gt",
+            "distance_lt": "office_distance__lt",
+            "open": "is_open",
+            "postal_code": "postal_code__icontains",
+            "city": "city__icontains",
+            "country": "country__icontains",
+        }
+        return {
+            model_query_map[param]: self.request.query_params[param]
+            for param in model_query_map.keys()
+            if self.request.query_params.get(param)
+        }
+
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = get_user_model().objects.all()
     serializer_class = UserSerializer
 
-    @action(detail=True, methods=["get"])
-    def favorite_restaurants(self, request, pk=None):
-        favor_list = FavoriteRestaurant.objects.filter(user=pk)
-        serial_data = FavoriteRestaurantSerializer(favor_list, many=True)
-        return Response(serial_data.data)
 
-    @favorite_restaurants.mapping.post
-    def post_favorite_restaurants(self, request, pk=None):
-        serial_post = FavoriteRestaurantSerializer(data=request.data)
-        serial_post.is_valid(raise_exception=True)
-        serial_post.save()
-        return Response(status=201)
+class FavoriteRestaurantListAPI(generics.ListCreateAPIView):
+    serializer_class = FavoriteRestaurantSerializer
 
-    @action(detail=True, methods=["get"])
-    def black_list_restaurants(self, request, pk=None):
-        black_list = BlackListedRestaurant.objects.filter(user=pk)
-        serial_data = BlackListedRestaurantSerializer(black_list, many=True)
-        return Response(serial_data.data)
+    def get_queryset(self):
+        user_pk = self.kwargs["user_pk"]
+        return FavoriteRestaurant.objects.filter(user=user_pk)
 
-    @black_list_restaurants.mapping.post
-    def post_black_list_restaurants(self, request, pk=None):
-        serial_post = BlackListedRestaurantSerializer(data=request.data)
-        serial_post.is_valid(raise_exception=True)
-        serial_post.save()
-        return Response(status=201)
+    def perform_create(self, serializer):
+        is_restaurant_blacklisted = BlackListedRestaurant.objects.get(
+            user=self.kwargs["user_pk"], restaurant=self.request.data["restaurant"]
+        )
+        if is_restaurant_blacklisted:
+            error_msg = (
+                f"Restaurant {is_restaurant_blacklisted.__str__()}"
+                f"is black listed by the user"
+            )
+            raise ValidationError({"error_msg": error_msg})
+
+        model_data = {
+            "user": get_user_model().objects.get(id=self.kwargs["user_pk"]),
+            "restaurant": Restaurant.objects.get(id=self.request.data["restaurant"]),
+        }
+        serializer.save(**model_data)
+
+
+class FavoriteRestaurantAPI(generics.DestroyAPIView):
+    serializer_class = FavoriteRestaurantSerializer
+
+    def get_object(self):
+        filters = {
+            "user": self.kwargs["user_pk"],
+            "restaurant": self.kwargs["restaurant_pk"],
+        }
+        return FavoriteRestaurant.objects.get(**filters)
+
+
+class BlackListRestaurantListAPI(generics.ListCreateAPIView):
+    serializer_class = BlackListedRestaurantSerializer
+
+    def get_queryset(self):
+        user_pk = self.kwargs["user_pk"]
+        return BlackListedRestaurant.objects.filter(user=user_pk)
+
+    def perform_create(self, serializer):
+        favorite_restaurant = FavoriteRestaurant.objects.get(
+            user=self.kwargs["user_pk"], restaurant=self.request.data["restaurant"]
+        )
+        if favorite_restaurant:
+            favorite_restaurant.delete()
+        user = get_object_or_404(BlackListedRestaurant, id=self.kwargs["user_pk"])
+        restaurant = get_object_or_404(
+            BlackListedRestaurant, id=self.request.data["restaurant"]
+        )
+        serializer.save(user=user, restaurant=restaurant)
+
+
+class BlackListedRestaurantAPI(generics.DestroyAPIView):
+    serializer_class = BlackListedRestaurantSerializer
+
+    def get_object(self):
+        filters = {
+            "user": self.kwargs["user_pk"],
+            "restaurant": self.kwargs["restaurant_pk"],
+        }
+        model = get_object_or_404(BlackListedRestaurant, **filters)
+        return model
