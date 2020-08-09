@@ -34,7 +34,7 @@ class FavoriteRestaurantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FavoriteRestaurant
-        fields = ("restaurants",)
+        fields = ("restaurants", "id")
 
     def get_restaurants(self, obj):
         serialize = RestaurantSerializer(obj.restaurant)

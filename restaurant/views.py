@@ -61,8 +61,12 @@ class FavoriteRestaurantListAPI(generics.ListCreateAPIView):
         return FavoriteRestaurant.objects.filter(user=user_pk)
 
     def perform_create(self, serializer):
-        is_restaurant_blacklisted = BlackListedRestaurant.objects.get(
-            user=self.kwargs["user_pk"], restaurant=self.request.data["restaurant"]
+
+        user = get_object_or_404(get_user_model(), id=self.kwargs["user_pk"])
+        restaurant = get_object_or_404(Restaurant, id=self.request.data["restaurant"])
+
+        is_restaurant_blacklisted = BlackListedRestaurant.objects.filter(
+            user=user.id, restaurant=restaurant.id
         )
         if is_restaurant_blacklisted:
             error_msg = (
@@ -70,12 +74,7 @@ class FavoriteRestaurantListAPI(generics.ListCreateAPIView):
                 f"is black listed by the user"
             )
             raise ValidationError({"error_msg": error_msg})
-
-        model_data = {
-            "user": get_user_model().objects.get(id=self.kwargs["user_pk"]),
-            "restaurant": Restaurant.objects.get(id=self.request.data["restaurant"]),
-        }
-        serializer.save(**model_data)
+        serializer.save(user=user, restaurant=restaurant)
 
 
 class FavoriteRestaurantAPI(generics.DestroyAPIView):
@@ -97,15 +96,13 @@ class BlackListRestaurantListAPI(generics.ListCreateAPIView):
         return BlackListedRestaurant.objects.filter(user=user_pk)
 
     def perform_create(self, serializer):
+        user = get_object_or_404(get_user_model(), id=self.kwargs["user_pk"])
+        restaurant = get_object_or_404(Restaurant, id=self.request.data["restaurant"])
         favorite_restaurant = FavoriteRestaurant.objects.get(
-            user=self.kwargs["user_pk"], restaurant=self.request.data["restaurant"]
+            user=user.id, restaurant=restaurant.id
         )
         if favorite_restaurant:
             favorite_restaurant.delete()
-        user = get_object_or_404(BlackListedRestaurant, id=self.kwargs["user_pk"])
-        restaurant = get_object_or_404(
-            BlackListedRestaurant, id=self.request.data["restaurant"]
-        )
         serializer.save(user=user, restaurant=restaurant)
 
 
