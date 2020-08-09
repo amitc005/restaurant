@@ -61,7 +61,6 @@ class FavoriteRestaurantListAPI(generics.ListCreateAPIView):
         return FavoriteRestaurant.objects.filter(user=user_pk)
 
     def perform_create(self, serializer):
-
         user = get_object_or_404(get_user_model(), id=self.kwargs["user_pk"])
         restaurant = get_object_or_404(Restaurant, id=self.request.data["restaurant"])
 
