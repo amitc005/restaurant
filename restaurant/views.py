@@ -1,4 +1,4 @@
-from rest_framework import viewsets, generics
+from rest_framework import viewsets
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
@@ -31,6 +31,7 @@ class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         return Restaurant.objects.filter(**self._get_query_params())
 
+    # Filter
     def _get_query_params(self):
         model_query_map = {
             "distance": "office_distance",
@@ -53,7 +54,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserSerializer
 
 
-class FavoriteRestaurantListAPI(generics.ListCreateAPIView):
+class FavoriteRestaurantViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = FavoriteRestaurantSerializer
 
     def get_queryset(self):
@@ -63,7 +64,6 @@ class FavoriteRestaurantListAPI(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         user = get_object_or_404(get_user_model(), id=self.kwargs["user_pk"])
         restaurant = get_object_or_404(Restaurant, id=self.request.data["restaurant"])
-
         is_restaurant_blacklisted = BlackListedRestaurant.objects.filter(
             user=user.id, restaurant=restaurant.id
         )
@@ -76,18 +76,7 @@ class FavoriteRestaurantListAPI(generics.ListCreateAPIView):
         serializer.save(user=user, restaurant=restaurant)
 
 
-class FavoriteRestaurantAPI(generics.DestroyAPIView):
-    serializer_class = FavoriteRestaurantSerializer
-
-    def get_object(self):
-        filters = {
-            "user": self.kwargs["user_pk"],
-            "restaurant": self.kwargs["restaurant_pk"],
-        }
-        return FavoriteRestaurant.objects.get(**filters)
-
-
-class BlackListRestaurantListAPI(generics.ListCreateAPIView):
+class BlackListViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = BlackListedRestaurantSerializer
 
     def get_queryset(self):
@@ -103,15 +92,3 @@ class BlackListRestaurantListAPI(generics.ListCreateAPIView):
         if favorite_restaurant:
             favorite_restaurant.delete()
         serializer.save(user=user, restaurant=restaurant)
-
-
-class BlackListedRestaurantAPI(generics.DestroyAPIView):
-    serializer_class = BlackListedRestaurantSerializer
-
-    def get_object(self):
-        filters = {
-            "user": self.kwargs["user_pk"],
-            "restaurant": self.kwargs["restaurant_pk"],
-        }
-        model = get_object_or_404(BlackListedRestaurant, **filters)
-        return model

@@ -4,6 +4,8 @@ from django.contrib.auth.models import User
 
 
 class Restaurant(models.Model):
+
+    #  Please make use boolean
     class Open(models.TextChoices):
         YES = "Y"
         NO = "N"
