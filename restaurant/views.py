@@ -6,6 +6,9 @@ from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.exceptions import ValidationError
 from .models import Restaurant, FavoriteRestaurant, BlackListedRestaurant
+from django_filters.rest_framework import DjangoFilterBackend
+from django_filters import rest_framework as filters
+
 from .serializer import (
     RestaurantSerializer,
     UserSerializer,
@@ -24,29 +27,29 @@ def api_root(request, format=None):
     )
 
 
+class RestaurantFilter(filters.FilterSet):
+    distance_gt = filters.NumberFilter(field_name="office_distance", lookup_expr="gt")
+    distance_lt = filters.NumberFilter(field_name="office_distance", lookup_expr="lt")
+    open = filters.ChoiceFilter(
+        field_name="is_open", choices=(("Y", "YES"), ("N", "NO"))
+    )
+    postal_code = filters.CharFilter(field_name="postal_code", lookup_expr="contains")
+    city = filters.CharFilter(field_name="city", lookup_expr="contains")
+    country = filters.CharFilter(field_name="country", lookup_expr="contains")
+
+    class Meta:
+        model = Restaurant
+        fields = ["open", "distance_lt", "distance_gt"]
+
+
 class RestaurantViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Restaurant.objects.all()
     serializer_class = RestaurantSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = RestaurantFilter
 
     def get_queryset(self):
-        return Restaurant.objects.filter(**self._get_query_params())
-
-    # Filter
-    def _get_query_params(self):
-        model_query_map = {
-            "distance": "office_distance",
-            "distance_gt": "office_distance__gt",
-            "distance_lt": "office_distance__lt",
-            "open": "is_open",
-            "postal_code": "postal_code__icontains",
-            "city": "city__icontains",
-            "country": "country__icontains",
-        }
-        return {
-            model_query_map[param]: self.request.query_params[param]
-            for param in model_query_map.keys()
-            if self.request.query_params.get(param)
-        }
+        return Restaurant.objects.filter()
 
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
